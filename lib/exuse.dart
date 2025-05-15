@@ -34,25 +34,19 @@ class AppUsageAppState extends State<AppUsageApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('App Usage Example'),
-          backgroundColor: Colors.green,
-        ),
-        body: ListView.builder(
-          itemCount: _infos.length,
-          itemBuilder: (context, index) {
-            return ListTile(
-              title: Text(_infos[index].appName),
-              trailing: Text(_infos[index].usage.toString()),
-            );
-          },
-        ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: getUsageStats,
-          child: Icon(Icons.file_download),
-        ),
+    return Scaffold(
+      body: ListView.builder(
+        itemCount: _infos.length,
+        itemBuilder: (context, index) {
+          return ListTile(
+            title: Text(_infos[index].appName),
+            trailing: Text(_infos[index].usage.toString()),
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: getUsageStats,
+        child: Icon(Icons.file_download),
       ),
     );
   }

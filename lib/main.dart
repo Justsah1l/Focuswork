@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:focuswork/apploader.dart';
 import 'package:focuswork/exuse.dart';
+import 'package:focuswork/homepage.dart';
 import 'package:focuswork/login.dart';
 import 'firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -26,7 +27,7 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: Loginpage(),
+      home: Homepage(),
     );
   }
 }
