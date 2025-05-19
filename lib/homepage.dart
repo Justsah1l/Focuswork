@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:focuswork/analytics.dart';
+
 import 'package:focuswork/exuse.dart';
 import 'package:focuswork/profile.dart';
 
@@ -27,10 +28,11 @@ class _HomepageState extends State<Homepage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Colors.black,
         leading: Builder(
           builder: (context) {
             return IconButton(
-              icon: const Icon(Icons.menu),
+              icon: const Icon(Icons.menu, color: Colors.white),
               onPressed: () {
                 Scaffold.of(context).openDrawer();
               },
