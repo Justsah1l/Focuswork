@@ -21,7 +21,7 @@ class AppUsageAppState extends State<AppUsageApp> {
   void initState() {
     super.initState();
     getUsageStats();
-    egetUsageStats();
+    // egetUsageStats();
   }
 
   Future<void> egetUsageStats() async {
@@ -52,14 +52,29 @@ class AppUsageAppState extends State<AppUsageApp> {
 
   Future<void> getUsageStats() async {
     try {
-      DateTime now = DateTime.now();
-      DateTime startDate = DateTime(now.year, now.month, now.day);
-      DateTime endDate = DateTime.now();
+      final istNow = DateTime.now().toUtc().add(
+        const Duration(hours: 5, minutes: 30),
+      );
+
+      final istStart = istNow.subtract(const Duration(hours: 20));
+
+      final utcStart = istStart.subtract(const Duration(hours: 5, minutes: 30));
+      final utcEnd = istNow.subtract(const Duration(hours: 5, minutes: 30));
+
+      print("IST range: $istStart to $istNow");
+      print("Sending to getAppUsage: $utcStart to $utcEnd");
 
       List<AppUsageInfo> infoList = await AppUsage().getAppUsage(
-        startDate,
-        endDate,
+        utcStart,
+        utcEnd,
       );
+      print(
+        "herere --------------------------------------------------------------------------------------------",
+      );
+      print("All apps:");
+      for (var info in infoList) {
+        print(info);
+      }
 
       infoList.sort((a, b) => b.usage.inMinutes.compareTo(a.usage.inMinutes));
 

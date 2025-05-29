@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:do_not_disturb/do_not_disturb.dart';
+import 'package:focuswork/main.dart';
 
 class Focustime extends StatefulWidget {
   const Focustime({super.key});
@@ -10,12 +12,70 @@ class Focustime extends StatefulWidget {
   State<Focustime> createState() => _FocustimeState();
 }
 
-class _FocustimeState extends State<Focustime> {
+class _FocustimeState extends State<Focustime>
+    with RouteAware, WidgetsBindingObserver {
   bool isRunning = false;
   int hours = 0;
   int minutes = 0;
   int seconds = 0;
   Timer? countdownTimer;
+  final dndPlugin = DoNotDisturbPlugin();
+  bool checkDNDOnReturn = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.subscribe(this, ModalRoute.of(context)! as PageRoute);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  Future<void> _checkAndStartCountdown() async {
+    final hasAccess = await dndPlugin.isNotificationPolicyAccessGranted();
+    if (hasAccess) {
+      await dndPlugin.setInterruptionFilter(InterruptionFilter.priority);
+      print('DND enabled after returning from settings');
+      _startCountdownInternal();
+    } else {
+      print('DND permission still not granted.');
+    }
+  }
+
+  @override
+  void didPopNext() {
+    if (checkDNDOnReturn) {
+      _checkAndStartCountdown();
+      checkDNDOnReturn = false;
+    }
+  }
+
+  Future<void> enableDND() async {
+    final hasAccess = await dndPlugin.isNotificationPolicyAccessGranted();
+    if (!hasAccess) {
+      await dndPlugin.openNotificationPolicyAccessSettings();
+      return;
+    }
+
+    await dndPlugin.setInterruptionFilter(InterruptionFilter.priority);
+    print('DND set to Priority');
+  }
+
+  Future<void> disableDND() async {
+    await dndPlugin.setInterruptionFilter(InterruptionFilter.all);
+    print('DND disabled (set to All)');
+  }
+
   void _showPickerDialog(
     BuildContext context,
     String title,
@@ -99,6 +159,98 @@ class _FocustimeState extends State<Focustime> {
         );
       },
     );
+  }
+
+  void _startCountdownInternal() {
+    setState(() {
+      isRunning = true;
+    });
+
+    countdownTimer = Timer.periodic(Duration(seconds: 1), (_) {
+      setState(() {
+        if (seconds > 0) {
+          seconds--;
+        } else if (minutes > 0) {
+          minutes--;
+          seconds = 59;
+        } else if (hours > 0) {
+          hours--;
+          minutes = 59;
+          seconds = 59;
+        } else {
+          countdownTimer?.cancel();
+          isRunning = false;
+        }
+      });
+    });
+  }
+
+  void startCountdown() {
+    enableDNDAndStartCountdown();
+  }
+
+  Future<void> enableDNDAndStartCountdown() async {
+    final hasAccess = await dndPlugin.isNotificationPolicyAccessGranted();
+    if (!hasAccess) {
+      await showDialog(
+        context: context,
+        builder:
+            (context) => AlertDialog(
+              backgroundColor: Colors.grey[900],
+              title: Text(
+                "Enable DND for Focuswork",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: "Circular",
+                ),
+              ),
+              content: Text(
+                "To use Focus mode, please grant Do Not Disturb access to Focuswork in the next screen.\n\nTurn the toggle ON for the app.",
+                style: TextStyle(color: Colors.white70, fontFamily: "Circular"),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text("OK", style: TextStyle(color: Colors.blueAccent)),
+                ),
+              ],
+            ),
+      );
+      checkDNDOnReturn = true;
+      await dndPlugin.openNotificationPolicyAccessSettings();
+      return;
+    }
+
+    await dndPlugin.setInterruptionFilter(InterruptionFilter.priority);
+    _startCountdownInternal();
+  }
+
+  void pauseCountdown() {
+    disableDND();
+    countdownTimer?.cancel();
+    setState(() {
+      isRunning = false;
+    });
+  }
+
+  void endCountdown() {
+    disableDND();
+    countdownTimer?.cancel();
+    setState(() {
+      isRunning = false;
+      hours = 0;
+      minutes = 0;
+      seconds = 0;
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && checkDNDOnReturn) {
+      _checkAndStartCountdown();
+      checkDNDOnReturn = false;
+    }
   }
 
   @override
@@ -231,22 +383,38 @@ class _FocustimeState extends State<Focustime> {
                 ),
                 Column(
                   children: [
-                    Container(
-                      height: MediaQuery.of(context).size.height * 0.08,
-                      width: MediaQuery.of(context).size.height * 0.12,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: Color.fromARGB(255, 38, 38, 38),
-                      ),
-                      child: Center(
-                        child: Text(
-                          "11",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 28.0,
-                            fontWeight: FontWeight.bold,
-                            fontFamily: "Circular",
-                            height: 1.2,
+                    GestureDetector(
+                      onTap:
+                          isRunning
+                              ? null
+                              : () => _showPickerDialog(
+                                context,
+                                "Select Seconds",
+                                0,
+                                59,
+                                (val) {
+                                  setState(() {
+                                    seconds = val;
+                                  });
+                                },
+                              ),
+                      child: Container(
+                        height: MediaQuery.of(context).size.height * 0.08,
+                        width: MediaQuery.of(context).size.height * 0.12,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: Color.fromARGB(255, 38, 38, 38),
+                        ),
+                        child: Center(
+                          child: Text(
+                            "$seconds",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 28.0,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: "Circular",
+                              height: 1.2,
+                            ),
                           ),
                         ),
                       ),
@@ -273,46 +441,52 @@ class _FocustimeState extends State<Focustime> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: Container(
-                      height: MediaQuery.of(context).size.height * 0.07,
-                      margin: EdgeInsets.symmetric(horizontal: 8),
+                    child: InkWell(
+                      onTap: pauseCountdown,
+                      child: Container(
+                        height: MediaQuery.of(context).size.height * 0.07,
+                        margin: EdgeInsets.symmetric(horizontal: 8),
 
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: Colors.white,
-                      ),
-                      child: Center(
-                        child: Text(
-                          "Pause",
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 16.0,
-                            fontWeight: FontWeight.bold,
-                            fontFamily: "Circular",
-                            height: 1.2,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.white,
+                        ),
+                        child: Center(
+                          child: Text(
+                            "Pause",
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 16.0,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: "Circular",
+                              height: 1.2,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
                   Expanded(
-                    child: Container(
-                      height: MediaQuery.of(context).size.height * 0.07,
-                      margin: EdgeInsets.symmetric(horizontal: 8),
+                    child: InkWell(
+                      onTap: endCountdown,
+                      child: Container(
+                        height: MediaQuery.of(context).size.height * 0.07,
+                        margin: EdgeInsets.symmetric(horizontal: 8),
 
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: Color.fromARGB(255, 38, 38, 38),
-                      ),
-                      child: Center(
-                        child: Text(
-                          "End Session",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16.0,
-                            fontWeight: FontWeight.bold,
-                            fontFamily: "Circular",
-                            height: 1.2,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: Color.fromARGB(255, 38, 38, 38),
+                        ),
+                        child: Center(
+                          child: Text(
+                            "End Session",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16.0,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: "Circular",
+                              height: 1.2,
+                            ),
                           ),
                         ),
                       ),
@@ -320,27 +494,33 @@ class _FocustimeState extends State<Focustime> {
                   ),
                 ],
               ),
+            if (!isRunning)
+              Container(
+                height: MediaQuery.of(context).size.height * 0.07,
 
-            Container(
-              height: MediaQuery.of(context).size.height * 0.07,
-
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: Colors.white,
-              ),
-              child: Center(
-                child: Text(
-                  "Start Session",
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 16.0,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: "Circular",
-                    height: 1.2,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                ),
+                child: InkWell(
+                  onTap: () {
+                    if (hours == 0 && minutes == 0 && seconds == 0) return;
+                    startCountdown();
+                  },
+                  child: Center(
+                    child: Text(
+                      "Start Session",
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 16.0,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: "Circular",
+                        height: 1.2,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
             SizedBox(height: MediaQuery.of(context).size.height * 0.04),
             Row(
               mainAxisSize: MainAxisSize.min,
